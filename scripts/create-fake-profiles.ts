@@ -211,6 +211,13 @@ async function createFakeProfiles(count: number = 10) {
       // Generate random profile picture (using DiceBear API for consistent avatars)
       const avatarStyle = faker.helpers.arrayElement(['adventurer', 'avataaars', 'big-smile', 'bottts', 'personas']);
       const profilePhoto = `https://api.dicebear.com/7.x/${avatarStyle}/svg?seed=${email}`;
+      
+      // Generate additional photos (2-4 photos per profile)
+      const photoCount = faker.number.int({ min: 2, max: 4 });
+      const additionalPhotos = Array.from({ length: photoCount }, (_, idx) => {
+        const photoStyle = faker.helpers.arrayElement(['adventurer', 'avataaars', 'big-smile', 'bottts', 'personas', 'lorelei', 'micah', 'pixel-art']);
+        return `https://api.dicebear.com/7.x/${photoStyle}/svg?seed=${email}-${idx}`;
+      });
 
       // Update user profile with fake data
       const { error: updateError } = await supabase
@@ -218,6 +225,7 @@ async function createFakeProfiles(count: number = 10) {
         .update({
           full_name: fullName,
           profile_photo: profilePhoto,
+          photos: additionalPhotos,
           major: faker.helpers.arrayElement(MAJORS),
           term: faker.helpers.arrayElement(TERMS),
           gender: faker.helpers.arrayElement(GENDERS),

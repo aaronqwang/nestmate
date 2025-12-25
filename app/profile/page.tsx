@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 
 const TERMS = [
   'First Year',
@@ -29,11 +30,6 @@ const AVAILABILITY_TERMS = [
   'Fall & Winter',
   'Winter & Spring',
   'Full Year'
-];
-
-const LISTING_TYPES = [
-  'Looking for Roommate',
-  'Offering Sublet/Lease'
 ];
 
 const HAS_PLACE_OPTIONS = [
@@ -137,13 +133,14 @@ const PROMPTS = [
 export default function ProfilePage() {
   const { user } = useAuth();
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const isWelcome = searchParams.get('welcome') === 'true';
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null]);
   const [major, setMajor] = useState('');
   const [term, setTerm] = useState('');
   const [gender, setGender] = useState('');
   const [availabilityTerm, setAvailabilityTerm] = useState('');
-  const [listingType, setListingType] = useState('');
   const [hasPlace, setHasPlace] = useState('');
   const [fullName, setFullName] = useState('');
   const [selectedPrompts, setSelectedPrompts] = useState<Array<{prompt: string, answer: string}>>([
@@ -165,23 +162,33 @@ export default function ProfilePage() {
           .eq('id', user.id)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // If user doesn't exist yet, that's ok - they're setting up for the first time
+          if (error.code === 'PGRST116') {
+            console.log('New user - no profile data yet');
+          } else {
+            console.error('Error loading profile:', error);
+          }
+        }
 
         if (data) {
           setFullName(data.full_name || '');
           setProfilePhoto(data.profile_photo || null);
-          setPhotos(data.photos || [null, null, null, null]);
+          setPhotos(data.photos && data.photos.length > 0 ? data.photos : [null, null, null, null]);
           setMajor(data.major || '');
           setTerm(data.term || '');
           setGender(data.gender || '');
           setAvailabilityTerm(data.availability_term || '');
-          setListingType(data.listing_type || '');
           setHasPlace(data.has_place || '');
-          setSelectedPrompts(data.prompts || [
-            { prompt: '', answer: '' },
-            { prompt: '', answer: '' },
-            { prompt: '', answer: '' }
-          ]);
+          
+          // Always ensure we have exactly 3 prompt slots
+          const loadedPrompts = data.prompts && Array.isArray(data.prompts) ? data.prompts : [];
+          const paddedPrompts = [
+            loadedPrompts[0] || { prompt: '', answer: '' },
+            loadedPrompts[1] || { prompt: '', answer: '' },
+            loadedPrompts[2] || { prompt: '', answer: '' }
+          ];
+          setSelectedPrompts(paddedPrompts);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -224,31 +231,60 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user) {
+      alert('User not found. Please log in again.');
+      return;
+    }
+    
+    // Check if required fields are filled
+    const hasRequiredFields = fullName && profilePhoto && major && term && gender && 
+                             availabilityTerm && hasPlace &&
+                             selectedPrompts.some(p => p.prompt && p.answer);
+    
+    if (!hasRequiredFields) {
+      alert('Please fill in all required fields: Name, Profile Photo, Major, Term, Gender, Availability, Housing Status, and at least one prompt.');
+      return;
+    }
     
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          full_name: fullName,
-          profile_photo: profilePhoto,
-          photos: photos.filter(p => p !== null),
-          major,
-          term,
-          gender,
-          availability_term: availabilityTerm,
-          listing_type: listingType,
-          has_place: hasPlace,
-          prompts: selectedPrompts.filter(p => p.prompt && p.answer),
-          profile_completed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
+      console.log('Saving profile for user:', user.id);
       
-      alert('Profile saved successfully!');
+      const updateData = {
+        id: user.id,
+        email: user.email,
+        username: user.email?.split('@')[0] || fullName.toLowerCase().replace(/\s+/g, '_'),
+        full_name: fullName,
+        profile_photo: profilePhoto,
+        photos: photos.filter(p => p !== null),
+        major,
+        term,
+        gender,
+        availability_term: availabilityTerm,
+        has_place: hasPlace,
+        prompts: selectedPrompts.filter(p => p.prompt && p.answer),
+        profile_completed: true,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Update data:', updateData);
+      
+      // Use upsert instead of update to handle both insert and update
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(updateData, { onConflict: 'id' })
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Save successful:', data);
+      alert('Profile saved successfully! You can now access the discover page.');
+      if (isWelcome) {
+        window.location.href = '/discover';
+      }
     } catch (error: any) {
       console.error('Error saving profile:', error);
       alert('Error saving profile: ' + error.message);
@@ -267,6 +303,18 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {isWelcome && (
+        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+          <h2 className="text-2xl font-bold text-indigo-900 mb-2">Welcome to NestMate! 🏠</h2>
+          <p className="text-indigo-700 mb-3">
+            Let's set up your profile so you can start finding your perfect roommate. Complete all required fields below to unlock the discover page.
+          </p>
+          <div className="text-sm text-indigo-600">
+            <strong>Required:</strong> Name, Profile Photo, Major, Term, Gender, Availability, Housing Status, and at least one prompt
+          </div>
+        </div>
+      )}
+      
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Edit Profile</h1>
       
       {/* Full Name */}
@@ -355,8 +403,8 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Availability and Listing Type */}
-      <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Availability and Housing Status */}
+      <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Availability Term
@@ -372,22 +420,6 @@ export default function ProfilePage() {
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">When are you looking for housing?</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Listing Type
-          </label>
-          <select
-            value={listingType}
-            onChange={(e) => setListingType(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="">Select type</option>
-            {LISTING_TYPES.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">Are you looking for a roommate or offering a sublet?</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -470,6 +502,22 @@ export default function ProfilePage() {
         >
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
+      </div>
+
+      {/* Account Settings */}
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <h2 className="text-xl font-semibold mb-6">Account Settings</h2>
+        
+        {/* Change Password */}
+        <div className="mb-8 bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-medium mb-4">Change Password</h3>
+          <button
+            onClick={() => window.location.href = '/settings'}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Manage Account Settings
+          </button>
+        </div>
       </div>
     </div>
   );

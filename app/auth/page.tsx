@@ -30,7 +30,7 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -38,8 +38,24 @@ export default function AuthPage() {
         },
       });
 
-      if (error) throw error;
-      setMessage('Check your email to confirm your account!');
+      if (error) {
+        // Check if user already exists
+        if (error.message.includes('already registered') || error.message.includes('already exists')) {
+          setError('This email is already registered. Please sign in instead.');
+          setIsSignUp(false);
+          return;
+        }
+        throw error;
+      }
+
+      // Check if user was created or already exists
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        setError('This email is already registered. Please sign in instead.');
+        setIsSignUp(false);
+        return;
+      }
+
+      setMessage('Check your email to confirm your account! You must verify your email before signing in. After verification, you\'ll be prompted to complete your profile.');
       setEmail('');
       setPassword('');
     } catch (error: any) {
@@ -56,13 +72,32 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
-      router.push('/');
+
+      // Check if email is verified
+      if (data.user && !data.user.email_confirmed_at) {
+        await supabase.auth.signOut();
+        setError('Please verify your email before signing in. Check your inbox for the verification link.');
+        return;
+      }
+
+      // Check if profile is completed
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('profile_completed')
+        .eq('id', data.user.id)
+        .single();
+
+      if (!userProfile?.profile_completed) {
+        router.push('/profile?welcome=true');
+      } else {
+        router.push('/');
+      }
     } catch (error: any) {
       setError(error.message);
     } finally {

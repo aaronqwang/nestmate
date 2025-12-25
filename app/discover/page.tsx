@@ -15,7 +15,6 @@ interface UserProfile {
   term: string;
   gender: string;
   availability_term: string;
-  listing_type: string;
   has_place: string;
   bio: string;
   prompts: Array<{ prompt: string; answer: string }>;
@@ -27,15 +26,39 @@ export default function DiscoverPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     gender: 'No preference',
-    term: 'No preference',
-    listingType: 'No preference'
+    term: 'No preference'
   });
+
+  // Check if user profile is completed
+  useEffect(() => {
+    const checkProfileCompletion = async () => {
+      if (!user) return;
+
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('profile_completed')
+        .eq('id', user.id)
+        .single();
+
+      if (!userProfile?.profile_completed) {
+        router.push('/profile?welcome=true');
+      }
+    };
+
+    checkProfileCompletion();
+  }, [user, supabase, router]);
+
+  // Reset photo index when profile changes
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [currentIndex]);
 
   useEffect(() => {
     const fetchProfiles = async () => {
@@ -69,11 +92,6 @@ export default function DiscoverPage() {
         // Apply term filter
         if (filters.term !== 'No preference') {
           query = query.eq('term', filters.term);
-        }
-
-        // Apply listing type filter
-        if (filters.listingType !== 'No preference') {
-          query = query.eq('listing_type', filters.listingType);
         }
 
         // Fetch all available users
@@ -149,18 +167,18 @@ export default function DiscoverPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference' || filters.listingType !== 'No preference')
+            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference')
               ? 'No profiles match your filters'
               : "That's everyone for now!"}
           </h2>
           <p className="text-gray-600 mb-6">
-            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference' || filters.listingType !== 'No preference')
+            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference')
               ? 'Try adjusting your filters to see more profiles'
               : 'Check back later for new profiles'}
           </p>
-          {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference' || filters.listingType !== 'No preference') ? (
+          {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference') ? (
             <button
-              onClick={() => setFilters({ gender: 'No preference', term: 'No preference', listingType: 'No preference' })}
+              onClick={() => setFilters({ gender: 'No preference', term: 'No preference' })}
               className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
               Reset Filters
@@ -247,27 +265,8 @@ export default function DiscoverPage() {
               </select>
             </div>
 
-            {/* Listing Type Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Listing Type
-              </label>
-              <select
-                value={filters.listingType}
-                onChange={(e) => {
-                  setFilters({ ...filters, listingType: e.target.value });
-                  setCurrentIndex(0);
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="No preference">No preference</option>
-                <option value="Looking for Roommate">Roommate Opportunities</option>
-                <option value="Offering Sublet/Lease">Sublet/Lease Offers</option>
-              </select>
-            </div>
-
             {/* Active Filters Summary */}
-            {(filters.gender !== 'No preference' || filters.term !== 'No preference' || filters.listingType !== 'No preference') && (
+            {(filters.gender !== 'No preference' || filters.term !== 'No preference') && (
               <div className="pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600 mb-2">Active filters:</p>
                 <div className="flex flex-wrap gap-2">
@@ -293,19 +292,8 @@ export default function DiscoverPage() {
                       </button>
                     </span>
                   )}
-                  {filters.listingType !== 'No preference' && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
-                      {filters.listingType === 'Looking for Roommate' ? 'Roommate Opportunities' : 'Sublet/Lease Offers'}
-                      <button
-                        onClick={() => setFilters({ ...filters, listingType: 'No preference' })}
-                        className="ml-2 text-indigo-600 hover:text-indigo-800"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
                   <button
-                    onClick={() => setFilters({ gender: 'No preference', term: 'No preference', listingType: 'No preference' })}
+                    onClick={() => setFilters({ gender: 'No preference', term: 'No preference' })}
                     className="text-sm text-indigo-600 hover:text-indigo-800 underline"
                   >
                     Clear all
@@ -328,20 +316,83 @@ export default function DiscoverPage() {
               : 'translate-x-0 rotate-0 opacity-100'
           }`}
         >
-          {/* Profile Photo */}
+          {/* Profile Photo Carousel */}
           <div className="relative h-96 bg-gray-200">
-            {currentProfile.profile_photo ? (
-              <Image
-                src={currentProfile.profile_photo}
-                alt={currentProfile.full_name || 'User'}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-gray-400 text-8xl">👤</span>
-              </div>
-            )}
+            {(() => {
+              // Build array of all available photos
+              const allPhotos = [currentProfile.profile_photo, ...(currentProfile.photos || [])].filter(Boolean);
+              const currentPhoto = allPhotos[currentPhotoIndex] || currentProfile.profile_photo;
+              
+              return (
+                <>
+                  {currentPhoto ? (
+                    <Image
+                      src={currentPhoto}
+                      alt={currentProfile.full_name || 'User'}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-gray-400 text-8xl">👤</span>
+                    </div>
+                  )}
+                  
+                  {/* Photo navigation - only show if multiple photos */}
+                  {allPhotos.length > 1 && (
+                    <>
+                      {/* Previous photo button */}
+                      {currentPhotoIndex > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentPhotoIndex(prev => prev - 1);
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                      )}
+                      
+                      {/* Next photo button */}
+                      {currentPhotoIndex < allPhotos.length - 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentPhotoIndex(prev => prev + 1);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      )}
+                      
+                      {/* Photo indicator dots */}
+                      <div className="absolute top-4 left-0 right-0 flex justify-center gap-2">
+                        {allPhotos.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentPhotoIndex(idx);
+                            }}
+                            className={`h-2 rounded-full transition-all ${
+                              idx === currentPhotoIndex 
+                                ? 'w-6 bg-white' 
+                                : 'w-2 bg-white/50 hover:bg-white/70'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
             
             {/* Name and Info Overlay */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
@@ -359,14 +410,9 @@ export default function DiscoverPage() {
 
           {/* Profile Details */}
           <div className="p-6 max-h-96 overflow-y-auto">
-            {/* Availability and Listing Type */}
-            {(currentProfile.availability_term || currentProfile.listing_type || currentProfile.has_place) && (
+            {/* Availability and Housing Status */}
+            {(currentProfile.availability_term || currentProfile.has_place) && (
               <div className="mb-6 flex flex-wrap gap-2">
-                {currentProfile.listing_type && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
-                    {currentProfile.listing_type === 'Looking for Roommate' ? '🏠' : '🔑'} {currentProfile.listing_type}
-                  </span>
-                )}
                 {currentProfile.availability_term && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                     📅 {currentProfile.availability_term}

@@ -8,6 +8,7 @@ import Link from 'next/link';
 
 interface MatchedUser {
   id: string;
+  match_id: string;
   full_name: string;
   profile_photo: string;
   major: string;
@@ -77,6 +78,7 @@ export default function MatchesPage() {
           if (!userError && userData) {
             matchedUsers.push({
               ...userData,
+              match_id: match.id,
               matched_at: match.created_at
             });
           }
@@ -191,6 +193,35 @@ export default function MatchesPage() {
     setReceivedLikes(prev => prev.filter(like => like.like_id !== likeId));
   };
 
+  const handleUnmatch = async (matchId: string, matchedUserId: string) => {
+    if (!user) return;
+
+    const confirmed = confirm('Are you sure you want to unmatch? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      // Delete the match
+      const { error: matchError } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', matchId);
+
+      if (matchError) throw matchError;
+
+      // Optionally delete both likes to allow re-matching
+      await supabase
+        .from('likes')
+        .delete()
+        .or(`and(from_user_id.eq.${user.id},to_user_id.eq.${matchedUserId}),and(from_user_id.eq.${matchedUserId},to_user_id.eq.${user.id})`);
+
+      // Update UI
+      setMatches(matches.filter(m => m.match_id !== matchId));
+    } catch (error) {
+      console.error('Error unmatching:', error);
+      alert('Failed to unmatch. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -224,7 +255,7 @@ export default function MatchesPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm relative`}
           >
-            Received ({receivedLikes.length})
+            Interested ({receivedLikes.length})
             {receivedLikes.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                 {receivedLikes.length}
@@ -239,7 +270,7 @@ export default function MatchesPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
-            Sent ({sentLikes.length})
+            Requested ({sentLikes.length})
           </button>
         </nav>
       </div>
@@ -307,12 +338,20 @@ export default function MatchesPage() {
                       Matched {new Date(match.matched_at).toLocaleDateString()}
                     </div>
                     
-                    <Link
-                      href={`/messages?user=${match.id}`}
-                      className="block w-full text-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                    >
-                      Send Message
-                    </Link>
+                    <div className="space-y-2">
+                      <Link
+                        href={`/messages?user=${match.id}`}
+                        className="block w-full text-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                      >
+                        Send Message
+                      </Link>
+                      <button
+                        onClick={() => handleUnmatch(match.match_id, match.id)}
+                        className="block w-full text-center px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors text-sm"
+                      >
+                        Unmatch
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -326,8 +365,8 @@ export default function MatchesPage() {
         <>
           {receivedLikes.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600 mb-4">No one has liked you yet!</p>
-              <p className="text-sm text-gray-500">Keep improving your profile to attract more matches</p>
+              <p className="text-gray-600 mb-4">No one has shown interest yet!</p>
+              <p className="text-sm text-gray-500">Keep improving your profile to attract more roommates</p>
               <Link
                 href="/profile"
                 className="mt-4 inline-block px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
@@ -356,7 +395,7 @@ export default function MatchesPage() {
                       </div>
                     )}
                     <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                      Likes You
+                      Interested
                     </div>
                   </div>
                   
@@ -384,7 +423,7 @@ export default function MatchesPage() {
                     )}
                     
                     <div className="text-xs text-gray-400 mb-4">
-                      Received {new Date(like.received_at).toLocaleDateString()}
+                      Interested since {new Date(like.received_at).toLocaleDateString()}
                     </div>
                     
                     {/* Accept/Reject Buttons */}
@@ -421,8 +460,8 @@ export default function MatchesPage() {
         <>
           {sentLikes.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600 mb-4">You haven't liked anyone yet!</p>
-              <p className="text-sm text-gray-500">Start liking profiles to see them here</p>
+              <p className="text-gray-600 mb-4">You haven't shown interest in anyone yet!</p>
+              <p className="text-sm text-gray-500">Start connecting with profiles to see them here</p>
               <Link
                 href="/discover"
                 className="mt-4 inline-block px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
