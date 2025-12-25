@@ -23,8 +23,6 @@ interface Message {
   match_id: string;
   sender_id: string;
   content: string;
-  attachment_url?: string;
-  attachment_name?: string;
   is_read: boolean;
   created_at: string;
 }
@@ -39,11 +37,12 @@ export default function MessagesPage() {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [videoCallUrl, setVideoCallUrl] = useState('');
+  const [videoCallActive, setVideoCallActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const jitsiContainerRef = useRef<HTMLDivElement>(null);
+  const jitsiApiRef = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -152,69 +151,18 @@ export default function MessagesPage() {
     };
   }, [selectedMatch, supabase]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Check file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
-        return;
-      }
-      setSelectedFile(file);
-    }
-  };
-
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && !selectedFile) || !selectedMatch || !user) return;
+    if (!newMessage.trim() || !selectedMatch || !user) return;
 
     const messageContent = newMessage.trim();
     setNewMessage(''); // Clear input immediately for better UX
-    setUploading(true);
 
     try {
-      let attachmentUrl = '';
-      let attachmentName = '';
-
-      // Upload file if selected
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `message-attachments/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('attachments')
-          .upload(filePath, selectedFile);
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          // If storage bucket doesn't exist, store as base64
-          const reader = new FileReader();
-          await new Promise((resolve) => {
-            reader.onloadend = () => {
-              attachmentUrl = reader.result as string;
-              attachmentName = selectedFile.name;
-              resolve(null);
-            };
-            reader.readAsDataURL(selectedFile);
-          });
-        } else {
-          const { data: urlData } = supabase.storage
-            .from('attachments')
-            .getPublicUrl(filePath);
-          attachmentUrl = urlData.publicUrl;
-          attachmentName = selectedFile.name;
-        }
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-
       const { data, error } = await supabase.from('messages').insert({
         match_id: selectedMatch.id,
         sender_id: user.id,
-        content: messageContent || (attachmentName ? `Sent ${attachmentName}` : ''),
-        attachment_url: attachmentUrl || null,
-        attachment_name: attachmentName || null,
+        content: messageContent,
       }).select().single();
 
       if (error) throw error;
@@ -227,9 +175,68 @@ export default function MessagesPage() {
       console.error('Error sending message:', error);
       // Restore message on error
       setNewMessage(messageContent);
-    } finally {
-      setUploading(false);
     }
+  };
+
+  const startVideoCall = () => {
+    setVideoCallActive(true);
+    
+    // Wait for next tick to ensure container is rendered
+    setTimeout(() => {
+      if (jitsiContainerRef.current && selectedMatch) {
+        const roomName = `nestmate-${selectedMatch.id}-${Date.now()}`;
+        
+        // Load Jitsi Meet API
+        const script = document.createElement('script');
+        script.src = 'https://meet.jit.si/external_api.js';
+        script.async = true;
+        script.onload = () => {
+          // @ts-ignore
+          const JitsiMeetExternalAPI = window.JitsiMeetExternalAPI;
+          
+          jitsiApiRef.current = new JitsiMeetExternalAPI('meet.jit.si', {
+            roomName: roomName,
+            parentNode: jitsiContainerRef.current,
+            configOverwrite: {
+              prejoinPageEnabled: false,
+              startWithVideoMuted: false,
+              startWithAudioMuted: false,
+              disableDeepLinking: true,
+            },
+            interfaceConfigOverwrite: {
+              SHOW_JITSI_WATERMARK: false,
+              SHOW_WATERMARK_FOR_GUESTS: false,
+              SHOW_BRAND_WATERMARK: false,
+              BRAND_WATERMARK_LINK: '',
+              JITSI_WATERMARK_LINK: '',
+              SHOW_POWERED_BY: false,
+              DISPLAY_WELCOME_PAGE_CONTENT: false,
+              DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
+              APP_NAME: 'NestMate',
+              NATIVE_APP_NAME: 'NestMate',
+              PROVIDER_NAME: 'NestMate',
+              TOOLBAR_BUTTONS: [
+                'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+                'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+                'videoquality', 'filmstrip', 'stats', 'shortcuts',
+                'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone'
+              ],
+            },
+          });
+        };
+        document.head.appendChild(script);
+      }
+    }, 100);
+  };
+
+  const endVideoCall = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.dispose();
+      jitsiApiRef.current = null;
+    }
+    setVideoCallActive(false);
+    setVideoCallUrl('');
   };
 
   if (loading) {
@@ -315,6 +322,17 @@ export default function MessagesPage() {
                 </p>
               </div>
             </div>
+            
+            {/* Video Call Button */}
+            <button
+              onClick={startVideoCall}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <span>Video Call</span>
+            </button>
           </div>
 
           {/* Messages */}
@@ -338,34 +356,7 @@ export default function MessagesPage() {
                         : 'bg-white text-gray-900'
                     }`}
                   >
-                    {message.attachment_url && (
-                      <div className="mb-2">
-                        {message.attachment_url.startsWith('data:image') || message.attachment_name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <img 
-                            src={message.attachment_url} 
-                            alt={message.attachment_name || 'Attachment'}
-                            className="max-w-full rounded-lg mb-1"
-                          />
-                        ) : (
-                          <a 
-                            href={message.attachment_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className={`flex items-center gap-2 p-2 rounded ${
-                              message.sender_id === user?.id
-                                ? 'bg-indigo-700 hover:bg-indigo-800'
-                                : 'bg-gray-100 hover:bg-gray-200'
-                            }`}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                            </svg>
-                            <span className="text-sm">{message.attachment_name}</span>
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {message.content && <p>{message.content}</p>}
+                    <p>{message.content}</p>
                     <p
                       className={`text-xs mt-1 ${
                         message.sender_id === user?.id
@@ -387,44 +378,7 @@ export default function MessagesPage() {
 
           {/* Message Input */}
           <form onSubmit={sendMessage} className="bg-white border-t border-gray-200 p-4">
-            {selectedFile && (
-              <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                <span className="flex-1">{selectedFile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
             <div className="flex space-x-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileSelect}
-                className="hidden"
-                accept="image/*,.pdf,.doc,.docx,.txt"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-gray-500 hover:text-indigo-600 transition-colors"
-                title="Attach file"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
               <input
                 type="text"
                 value={newMessage}
@@ -434,10 +388,10 @@ export default function MessagesPage() {
               />
               <button
                 type="submit"
-                disabled={(!newMessage.trim() && !selectedFile) || uploading}
+                disabled={!newMessage.trim()}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {uploading ? 'Sending...' : 'Send'}
+                Send
               </button>
             </div>
           </form>
@@ -449,6 +403,35 @@ export default function MessagesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             <p className="text-lg">Select a match to start chatting</p>
+          </div>
+        </div>
+      )}
+
+      {/* Video Call Modal */}
+      {videoCallActive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+          <div className="relative w-full h-full max-w-7xl max-h-[90vh] m-4 bg-white rounded-lg overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 bg-gray-900 text-white">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="font-semibold">Video Call with {selectedMatch?.full_name}</span>
+              </div>
+              <button
+                onClick={endVideoCall}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                title="End call"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Jitsi container */}
+            <div ref={jitsiContainerRef} className="flex-1 w-full bg-gray-900" />
           </div>
         </div>
       )}
