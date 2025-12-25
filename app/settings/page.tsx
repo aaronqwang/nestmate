@@ -77,6 +77,15 @@ export default function SettingsPage() {
 
       if (deleteError) throw deleteError;
 
+      // Delete auth user (requires RPC call or service role)
+      // Note: This requires a database function or service role permissions
+      const { error: authDeleteError } = await supabase.rpc('delete_user');
+      
+      if (authDeleteError) {
+        console.error('Auth deletion error:', authDeleteError);
+        // Continue with sign out even if auth deletion fails
+      }
+
       // Sign out the user
       await supabase.auth.signOut();
 
