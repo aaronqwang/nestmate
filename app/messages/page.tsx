@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
@@ -31,7 +31,7 @@ interface Message {
   created_at: string;
 }
 
-export default function MessagesPage() {
+function MessagesContent() {
   const { user } = useAuth();
   const supabase = createClient();
   const searchParams = useSearchParams();
@@ -455,5 +455,13 @@ export default function MessagesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <MessagesContent />
+    </Suspense>
   );
 }
