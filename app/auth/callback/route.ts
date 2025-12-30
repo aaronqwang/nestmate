@@ -27,12 +27,13 @@ export async function GET(request: Request) {
           .eq('id', user.id)
           .single();
 
-      // If profile is not completed, redirect to onboarding
-      if (!userData?.profile_completed) {
-        return NextResponse.redirect(`${origin}/onboarding`);
-      }
+        // If profile is not completed, redirect to onboarding
+        if (!userData?.profile_completed) {
+          return NextResponse.redirect(`${origin}/onboarding`);
+        }
 
-      return NextResponse.redirect(`${origin}${next}`);
+        return NextResponse.redirect(`${origin}${next}`);
+      }
     }
   }
 
