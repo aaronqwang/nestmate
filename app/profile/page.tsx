@@ -133,8 +133,6 @@ const PROMPTS = [
 export default function ProfilePage() {
   const { user } = useAuth();
   const supabase = createClient();
-  const searchParams = useSearchParams();
-  const isWelcome = searchParams.get('welcome') === 'true';
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null]);
   const [major, setMajor] = useState('');
@@ -143,6 +141,9 @@ export default function ProfilePage() {
   const [availabilityTerm, setAvailabilityTerm] = useState('');
   const [hasPlace, setHasPlace] = useState('');
   const [fullName, setFullName] = useState('');
+  const [bio, setBio] = useState('');
+  const [preferredGender, setPreferredGender] = useState('No preference');
+  const [preferredTerm, setPreferredTerm] = useState('No preference');
   const [selectedPrompts, setSelectedPrompts] = useState<Array<{prompt: string, answer: string}>>([
     { prompt: '', answer: '' },
     { prompt: '', answer: '' },
@@ -180,6 +181,9 @@ export default function ProfilePage() {
           setGender(data.gender || '');
           setAvailabilityTerm(data.availability_term || '');
           setHasPlace(data.has_place || '');
+          setBio(data.bio || '');
+          setPreferredGender(data.preferred_gender || 'No preference');
+          setPreferredTerm(data.preferred_term || 'No preference');
           
           // Always ensure we have exactly 3 prompt slots
           const loadedPrompts = data.prompts && Array.isArray(data.prompts) ? data.prompts : [];
@@ -236,13 +240,45 @@ export default function ProfilePage() {
       return;
     }
     
-    // Check if required fields are filled
-    const hasRequiredFields = fullName && profilePhoto && major && term && gender && 
-                             availabilityTerm && hasPlace &&
-                             selectedPrompts.some(p => p.prompt && p.answer);
-    
-    if (!hasRequiredFields) {
-      alert('Please fill in all required fields: Name, Profile Photo, Major, Term, Gender, Availability, Housing Status, and at least one prompt.');
+    // Validate all required fields
+    if (!fullName.trim()) {
+      alert('Please enter your full name.');
+      return;
+    }
+
+    if (!profilePhoto) {
+      alert('Please upload a profile photo.');
+      return;
+    }
+
+    if (!major) {
+      alert('Please select your major/program.');
+      return;
+    }
+
+    if (!term) {
+      alert('Please select your current term.');
+      return;
+    }
+
+    if (!gender) {
+      alert('Please select your gender.');
+      return;
+    }
+
+    if (!availabilityTerm) {
+      alert('Please select your availability term.');
+      return;
+    }
+
+    if (!hasPlace) {
+      alert('Please select your housing status.');
+      return;
+    }
+
+    const filledPrompts = selectedPrompts.filter(p => p.prompt && p.answer.trim());
+    if (filledPrompts.length === 0) {
+      alert('Please answer at least one prompt to help others get to know you.');
       return;
     }
     
@@ -262,7 +298,10 @@ export default function ProfilePage() {
         gender,
         availability_term: availabilityTerm,
         has_place: hasPlace,
-        prompts: selectedPrompts.filter(p => p.prompt && p.answer),
+        bio: bio.trim() || null,
+        prompts: filledPrompts,
+        preferred_gender: preferredGender,
+        preferred_term: preferredTerm,
         profile_completed: true,
         updated_at: new Date().toISOString()
       };
@@ -281,10 +320,7 @@ export default function ProfilePage() {
       }
       
       console.log('Save successful:', data);
-      alert('Profile saved successfully! You can now access the discover page.');
-      if (isWelcome) {
-        window.location.href = '/discover';
-      }
+      alert('Profile updated successfully!');
     } catch (error: any) {
       console.error('Error saving profile:', error);
       alert('Error saving profile: ' + error.message);
@@ -303,24 +339,12 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {isWelcome && (
-        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-6">
-          <h2 className="text-2xl font-bold text-indigo-900 mb-2">Welcome to NestMate! 🏠</h2>
-          <p className="text-indigo-700 mb-3">
-            Let's set up your profile so you can start finding your perfect roommate. Complete all required fields below to unlock the discover page.
-          </p>
-          <div className="text-sm text-indigo-600">
-            <strong>Required:</strong> Name, Profile Photo, Major, Term, Gender, Availability, Housing Status, and at least one prompt
-          </div>
-        </div>
-      )}
-      
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Edit Profile</h1>
       
       {/* Full Name */}
       <div className="mb-8">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Full Name
+          Full Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
@@ -333,7 +357,7 @@ export default function ProfilePage() {
 
       {/* Profile Photo */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Profile Photo</h2>
+        <h2 className="text-xl font-semibold mb-4">Profile Photo <span className="text-red-500">*</span></h2>
         <div className="flex items-center space-x-6">
           <div className="relative w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
             {profilePhoto ? (
@@ -354,11 +378,25 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Bio */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">About Me</h2>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          placeholder="Write a short bio about yourself, your interests, lifestyle, and what you're looking for in a roommate..."
+          rows={5}
+          maxLength={500}
+          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+        />
+        <p className="text-xs text-gray-500 mt-1">{bio.length}/500 characters</p>
+      </div>
+
       {/* Major, Term, and Gender */}
       <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Major / Program
+            Major / Program <span className="text-red-500">*</span>
           </label>
           <select
             value={major}
@@ -373,7 +411,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Current Term
+            Current Term <span className="text-red-500">*</span>
           </label>
           <select
             value={term}
@@ -388,7 +426,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Gender
+            Gender <span className="text-red-500">*</span>
           </label>
           <select
             value={gender}
@@ -407,7 +445,7 @@ export default function ProfilePage() {
       <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Availability Term
+            Availability Term <span className="text-red-500">*</span>
           </label>
           <select
             value={availabilityTerm}
@@ -423,7 +461,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Housing Status
+            Housing Status <span className="text-red-500">*</span>
           </label>
           <select
             value={hasPlace}
@@ -436,6 +474,51 @@ export default function ProfilePage() {
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">Do you already have a place?</p>
+        </div>
+      </div>
+
+      {/* Preferences */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Discovery Preferences</h2>
+        <p className="text-sm text-gray-600 mb-4">Set your preferences for who you'd like to see in the discover section</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Preferred Roommate Gender
+            </label>
+            <select
+              value={preferredGender}
+              onChange={(e) => setPreferredGender(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="No preference">No preference</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+              <option value="Other">Other</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Filter profiles by gender preference</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Preferred Academic Year
+            </label>
+            <select
+              value={preferredTerm}
+              onChange={(e) => setPreferredTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="No preference">No preference</option>
+              <option value="First Year">First Year</option>
+              <option value="Second Year">Second Year</option>
+              <option value="Third Year">Third Year</option>
+              <option value="Fourth Year">Fourth Year</option>
+              <option value="Graduate">Graduate</option>
+              <option value="Other">Other</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Filter profiles by academic year</p>
+          </div>
         </div>
       </div>
 
@@ -466,8 +549,8 @@ export default function ProfilePage() {
 
       {/* Prompts */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">About You</h2>
-        <p className="text-sm text-gray-600 mb-4">Answer prompts to help find your perfect match</p>
+        <h2 className="text-xl font-semibold mb-4">About You <span className="text-red-500">*</span></h2>
+        <p className="text-sm text-gray-600 mb-4">Answer at least one prompt to help find your perfect match</p>
         <div className="space-y-6">
           {selectedPrompts.map((item, index) => (
             <div key={index} className="border border-gray-200 rounded-lg p-4">

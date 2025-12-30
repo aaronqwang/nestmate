@@ -8,8 +8,20 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      // Check if user has completed their profile
+      const { data: userData } = await supabase
+        .from('users')
+        .select('profile_completed')
+        .eq('id', data.user.id)
+        .single();
+
+      // If profile is not completed, redirect to onboarding
+      if (!userData?.profile_completed) {
+        return NextResponse.redirect(`${origin}/onboarding`);
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

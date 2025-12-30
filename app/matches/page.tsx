@@ -296,20 +296,22 @@ export default function MatchesPage() {
                   key={match.id}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                 >
-                  <div className="relative h-64 bg-gray-200">
-                    {match.profile_photo ? (
-                      <Image
-                        src={match.profile_photo}
-                        alt={match.full_name || 'User'}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-gray-400 text-6xl">👤</span>
-                      </div>
-                    )}
-                  </div>
+                  <Link href={`/profile/${match.id}`}>
+                    <div className="relative h-64 bg-gray-200 cursor-pointer">
+                      {match.profile_photo ? (
+                        <Image
+                          src={match.profile_photo}
+                          alt={match.full_name || 'User'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-gray-400 text-6xl">👤</span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                   
                   <div className="p-4">
                     <h3 className="text-xl font-semibold text-gray-900 mb-1">
@@ -381,23 +383,25 @@ export default function MatchesPage() {
                   key={like.like_id}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                 >
-                  <div className="relative h-64 bg-gray-200">
-                    {like.profile_photo ? (
-                      <Image
-                        src={like.profile_photo}
-                        alt={like.full_name || 'User'}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-gray-400 text-6xl">👤</span>
+                  <Link href={`/profile/${like.user_id}`}>
+                    <div className="relative h-64 bg-gray-200 cursor-pointer">
+                      {like.profile_photo ? (
+                        <Image
+                          src={like.profile_photo}
+                          alt={like.full_name || 'User'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-gray-400 text-6xl">👤</span>
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                        Interested
                       </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                      Interested
                     </div>
-                  </div>
+                  </Link>
                   
                   <div className="p-4">
                     <h3 className="text-xl font-semibold text-gray-900 mb-1">
@@ -476,23 +480,25 @@ export default function MatchesPage() {
                   key={like.id}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow opacity-75"
                 >
-                  <div className="relative h-64 bg-gray-200">
-                    {like.profile_photo ? (
-                      <Image
-                        src={like.profile_photo}
-                        alt={like.full_name || 'User'}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-gray-400 text-6xl">👤</span>
+                  <Link href={`/profile/${like.id}`}>
+                    <div className="relative h-64 bg-gray-200 cursor-pointer">
+                      {like.profile_photo ? (
+                        <Image
+                          src={like.profile_photo}
+                          alt={like.full_name || 'User'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-gray-400 text-6xl">👤</span>
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full">
+                        Pending
                       </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full">
-                      Pending
                     </div>
-                  </div>
+                  </Link>
                   
                   <div className="p-4">
                     <h3 className="text-xl font-semibold text-gray-900 mb-1">

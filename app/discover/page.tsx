@@ -30,25 +30,30 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
-    gender: 'No preference',
-    term: 'No preference'
+  const [userPreferences, setUserPreferences] = useState({
+    preferredGender: 'No preference',
+    preferredTerm: 'No preference'
   });
 
-  // Check if user profile is completed
+  // Check if user profile is completed and load preferences
   useEffect(() => {
     const checkProfileCompletion = async () => {
       if (!user) return;
 
       const { data: userProfile } = await supabase
         .from('users')
-        .select('profile_completed')
+        .select('profile_completed, preferred_gender, preferred_term')
         .eq('id', user.id)
         .single();
 
       if (!userProfile?.profile_completed) {
-        router.push('/profile?welcome=true');
+        router.push('/onboarding');
+      } else {
+        // Load user's preferences
+        setUserPreferences({
+          preferredGender: userProfile.preferred_gender || 'No preference',
+          preferredTerm: userProfile.preferred_term || 'No preference'
+        });
       }
     };
 
@@ -84,14 +89,14 @@ export default function DiscoverPage() {
           query = query.not('id', 'in', `(${likedUserIds.join(',')})`);
         }
 
-        // Apply gender filter
-        if (filters.gender !== 'No preference') {
-          query = query.eq('gender', filters.gender);
+        // Apply gender preference
+        if (userPreferences.preferredGender !== 'No preference') {
+          query = query.eq('gender', userPreferences.preferredGender);
         }
 
-        // Apply term filter
-        if (filters.term !== 'No preference') {
-          query = query.eq('term', filters.term);
+        // Apply term preference
+        if (userPreferences.preferredTerm !== 'No preference') {
+          query = query.eq('term', userPreferences.preferredTerm);
         }
 
         // Fetch all available users
@@ -109,7 +114,7 @@ export default function DiscoverPage() {
     };
 
     fetchProfiles();
-  }, [user, supabase, filters]);
+  }, [user, supabase, userPreferences]);
 
   const handleLike = async () => {
     if (!user || currentIndex >= profiles.length || isAnimating) return;
@@ -167,21 +172,21 @@ export default function DiscoverPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference')
-              ? 'No profiles match your filters'
+            {profiles.length === 0 && (userPreferences.preferredGender !== 'No preference' || userPreferences.preferredTerm !== 'No preference')
+              ? 'No profiles match your preferences'
               : "That's everyone for now!"}
           </h2>
           <p className="text-gray-600 mb-6">
-            {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference')
-              ? 'Try adjusting your filters to see more profiles'
+            {profiles.length === 0 && (userPreferences.preferredGender !== 'No preference' || userPreferences.preferredTerm !== 'No preference')
+              ? 'Try adjusting your preferences in your profile settings to see more profiles'
               : 'Check back later for new profiles'}
           </p>
-          {profiles.length === 0 && (filters.gender !== 'No preference' || filters.term !== 'No preference') ? (
+          {profiles.length === 0 && (userPreferences.preferredGender !== 'No preference' || userPreferences.preferredTerm !== 'No preference') ? (
             <button
-              onClick={() => setFilters({ gender: 'No preference', term: 'No preference' })}
+              onClick={() => router.push('/profile')}
               className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
-              Reset Filters
+              Update Preferences
             </button>
           ) : (
             <button
@@ -200,106 +205,36 @@ export default function DiscoverPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header with Filter Button */}
+      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Discover</h1>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
-          Filters
-        </button>
+        {(userPreferences.preferredGender !== 'No preference' || userPreferences.preferredTerm !== 'No preference') && (
+          <button
+            onClick={() => router.push('/profile')}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Edit Preferences
+          </button>
+        )}
       </div>
 
-      {/* Filter Panel */}
-      {showFilters && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Filter Preferences</h2>
-          
-          <div className="space-y-4">
-            {/* Gender Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Gender
-              </label>
-              <select
-                value={filters.gender}
-                onChange={(e) => {
-                  setFilters({ ...filters, gender: e.target.value });
-                  setCurrentIndex(0);
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="No preference">No preference</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Non-binary">Non-binary</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            {/* Term Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Term (Academic Year)
-              </label>
-              <select
-                value={filters.term}
-                onChange={(e) => {
-                  setFilters({ ...filters, term: e.target.value });
-                  setCurrentIndex(0);
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="No preference">No preference</option>
-                <option value="First Year">First Year</option>
-                <option value="Second Year">Second Year</option>
-                <option value="Third Year">Third Year</option>
-                <option value="Fourth Year">Fourth Year</option>
-                <option value="Graduate">Graduate</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            {/* Active Filters Summary */}
-            {(filters.gender !== 'No preference' || filters.term !== 'No preference') && (
-              <div className="pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600 mb-2">Active filters:</p>
-                <div className="flex flex-wrap gap-2">
-                  {filters.gender !== 'No preference' && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
-                      Gender: {filters.gender}
-                      <button
-                        onClick={() => setFilters({ ...filters, gender: 'No preference' })}
-                        className="ml-2 text-indigo-600 hover:text-indigo-800"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
-                  {filters.term !== 'No preference' && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
-                      Term: {filters.term}
-                      <button
-                        onClick={() => setFilters({ ...filters, term: 'No preference' })}
-                        className="ml-2 text-indigo-600 hover:text-indigo-800"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setFilters({ gender: 'No preference', term: 'No preference' })}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 underline"
-                  >
-                    Clear all
-                  </button>
-                </div>
-              </div>
+      {/* Active Preferences Display */}
+      {(userPreferences.preferredGender !== 'No preference' || userPreferences.preferredTerm !== 'No preference') && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+          <p className="text-sm font-medium text-indigo-900 mb-2">Active Preferences:</p>
+          <div className="flex flex-wrap gap-2">
+            {userPreferences.preferredGender !== 'No preference' && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
+                Gender: {userPreferences.preferredGender}
+              </span>
+            )}
+            {userPreferences.preferredTerm !== 'No preference' && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
+                Year: {userPreferences.preferredTerm}
+              </span>
             )}
           </div>
         </div>
@@ -402,9 +337,21 @@ export default function DiscoverPage() {
               {currentProfile.major && (
                 <p className="text-white text-lg">{currentProfile.major}</p>
               )}
-              {currentProfile.term && (
-                <p className="text-white/90">{currentProfile.term}</p>
-              )}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {currentProfile.term && (
+                  <span className="text-white/90 text-sm">{currentProfile.term}</span>
+                )}
+                {currentProfile.term && currentProfile.has_place && (
+                  <span className="text-white/60">•</span>
+                )}
+                {currentProfile.has_place && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm">
+                    {currentProfile.has_place === 'Have a place' ? '🏡 Have a place' : 
+                     currentProfile.has_place === 'Need a place' ? '🔍 Need a place' : 
+                     '🤝 Flexible'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -492,11 +439,6 @@ export default function DiscoverPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </button>
-        </div>
-
-        {/* Profile Counter */}
-        <div className="text-center mt-4 text-gray-500 text-sm">
-          {currentIndex + 1} / {profiles.length}
         </div>
       </div>
     </div>

@@ -6,8 +6,13 @@ export interface User {
   photos?: string[];
   major?: string;
   term?: string;
+  gender?: string;
+  availability_term?: string;
+  has_place?: string;
   bio?: string;
   prompts?: Array<{ prompt: string; answer: string }>;
+  preferred_gender?: string;
+  preferred_term?: string;
   preferences?: {
     budget_range?: { min: number; max: number };
     move_in_date?: string;

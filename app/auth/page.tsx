@@ -94,7 +94,7 @@ export default function AuthPage() {
         .single();
 
       if (!userProfile?.profile_completed) {
-        router.push('/profile?welcome=true');
+        router.push('/onboarding');
       } else {
         router.push('/');
       }
