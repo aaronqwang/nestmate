@@ -175,7 +175,15 @@ export default function ProfilePage() {
         if (data) {
           setFullName(data.full_name || '');
           setProfilePhoto(data.profile_photo || null);
-          setPhotos(data.photos && data.photos.length > 0 ? data.photos : [null, null, null, null]);
+          // Ensure we always have exactly 4 photo slots
+          const loadedPhotos = data.photos && Array.isArray(data.photos) ? data.photos : [];
+          const paddedPhotos = [
+            loadedPhotos[0] || null,
+            loadedPhotos[1] || null,
+            loadedPhotos[2] || null,
+            loadedPhotos[3] || null
+          ];
+          setPhotos(paddedPhotos);
           setMajor(data.major || '');
           setTerm(data.term || '');
           setGender(data.gender || '');
@@ -526,14 +534,19 @@ export default function ProfilePage() {
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Photos</h2>
         <p className="text-sm text-gray-600 mb-4">Add up to 4 photos to showcase yourself</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {photos.map((photo, index) => (
-            <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-              {photo ? (
-                <Image src={photo} alt={`Photo ${index + 1}`} fill className="object-cover" />
-              ) : (
-                <label className="cursor-pointer w-full h-full flex items-center justify-center">
-                  <span className="text-gray-400 text-2xl">+</span>
+            <div key={index} className="flex items-center space-x-4">
+              <div className="relative w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                {photo ? (
+                  <Image src={photo} alt={`Photo ${index + 1}`} fill className="object-cover" unoptimized />
+                ) : (
+                  <span className="text-gray-400 text-3xl">📷</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="cursor-pointer px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-center text-sm">
+                  {photo ? 'Change Photo' : 'Upload Photo'}
                   <input
                     type="file"
                     accept="image/*"
@@ -541,7 +554,19 @@ export default function ProfilePage() {
                     className="hidden"
                   />
                 </label>
-              )}
+                {photo && (
+                  <button
+                    onClick={() => {
+                      const newPhotos = [...photos];
+                      newPhotos[index] = null;
+                      setPhotos(newPhotos);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
