@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
+export const dynamic = 'force-dynamic';
+
 interface Match {
   id: string;
   user_id: string;
